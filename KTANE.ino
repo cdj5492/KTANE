@@ -30,8 +30,8 @@ const int lightThreshold = 500;
 
 // shift register
 #define shiftData  6
-#define shiftClk   7
-#define shiftLatch 8
+#define shiftClk   8
+#define shiftLatch 7
 
 uint16_t out = 0;
 
@@ -64,17 +64,22 @@ uint16_t strikeLedPin1 = 1 << 9;
 uint16_t strikeLedPin2 = 1 << 10;
 
 // all leds share these cathodes
-uint16_t ledRed = 1 << 0;
-uint16_t ledGreen = 1 << 7;
-uint16_t ledBlue = 1 << 6;
+// uint16_t ledRed = 1 << 0;
+// uint16_t ledGreen = 1 << 7;
+// uint16_t ledBlue = 1 << 6;
+
+uint16_t ledRed = 0;
+uint16_t ledGreen = 7;
+uint16_t ledBlue = 6;
 
 int numLeds = 4;
-uint16_t ledAnodes[] = {1 << 5, 1 << 4, 1 << 3, 1 << 2}; // each led has its own anode
+//uint16_t ledAnodes[] = {1 << 5, 1 << 4, 1 << 3, 1 << 2}; // each led has its own anode
+uint16_t ledAnodes[] = {5, 4, 3, 2};
 // red, blue, green channels (on or off)
 bool ledStates[][3] = {
-    {0, 0, 0},
     {1, 0, 0},
-    {0, 0, 0},
+    {0, 1, 0},
+    {0, 0, 1},
     {0, 0, 0},
     {0, 0, 0},
     {0, 0, 0},
@@ -202,7 +207,9 @@ void loop() {
             if (analogRead(lidSensorPin) > lightThreshold) // wait for lid to close
                 bombState = 1;
 
-            delay(1000);
+            updateBuzzer();
+
+            //delay(1000);
             break;
     }
 }
@@ -304,23 +311,18 @@ void doButtonModule() {
 }
 
 void multiplexLeds() {
-    out = ledAnodes[0];
-    updateShiftReg();
-    //out &= ~ledRed;
-    //out &= ~ledBlue;
-    //out &= ~ledGreen;
-    // for(int i = 0; i < numLeds; i++) {
-    //     out |= ledAnodes[i];
-    //     out &= ~ledRed;
-    //     out &= ~ledGreen;
-    //     out &= ~ledBlue;
-    //     if (ledStates[i][0]) out |= ledRed;
-    //     if (ledStates[i][1]) out |= ledGreen;
-    //     if (ledStates[i][2]) out |= ledBlue;
-    //     updateShiftReg();
-    //     out &= ~ledAnodes[i];
-    //     delay(1000);
-    // }
+    for(int i = 0; i < numLeds; i++) {
+        //out |= ledAnodes[i];
+        bitWrite(out, ledAnodes[i], 1);
+        // out &= ~ledRed;
+        // out &= ~ledGreen;
+        // out &= ~ledBlue;
+        bitWrite(out, ledRed, !ledStates[i][0]);
+        bitWrite(out, ledGreen, !ledStates[i][1]);
+        bitWrite(out, ledBlue, !ledStates[i][2]);
+        updateShiftReg();
+        bitWrite(out, ledAnodes[i], 0);
+    }
 }
 
 void updateShiftReg() {
