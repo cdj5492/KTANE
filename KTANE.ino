@@ -1,7 +1,23 @@
 #include <LiquidCrystal.h>
 #include <stdlib.h>     /* srand, rand */
+#include <Wire.h>
 
 using namespace std;
+
+/// 2nd arduino expansion pins ///
+#define PWM_3_REG         0
+#define PWM_5_REG         1
+#define PWM_6_REG         2
+#define PWM_9_REG         3
+#define PWM_10_REG        4
+#define PWM_11_REG        5
+#define PWM_OFF           0
+#define DDR               6
+#define DR                7
+#define ALL_IN            B00111111
+#define ANALOGUE_IN_0_LOW 8
+#define ANALOGUE_PORT     0  // Change this to read from Analogue ports 0...3
+#define SLAVE_ADDR        8  // Change this to the Addr of your device
 
 /// LCD interface pins ///
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
@@ -44,32 +60,67 @@ char serialCode[6];
 int bombState = 1;
 
 int strikes = 0; // how many strikes the player has
-uint16_t strikeLedPin1 = 1 << 0;
-uint16_t strikeLedPin2 = 1 << 1;
+uint16_t strikeLedPin1 = 1 << 9;
+uint16_t strikeLedPin2 = 1 << 10;
 
 // all leds share these cathodes
-uint16_t ledRed = 1 << 2;
-uint16_t ledGreen = 1 << 3;
-uint16_t ledBlue = 1 << 4;
+uint16_t ledRed = 1 << 0;
+uint16_t ledGreen = 1 << 7;
+uint16_t ledBlue = 1 << 6;
 
 int numLeds = 4;
-uint16_t ledAnodes[] = {1 << 5, 1 << 6, 1 << 7, 1 << 8}; // each led has its own anode
+uint16_t ledAnodes[] = {1 << 5, 1 << 4, 1 << 3, 1 << 2}; // each led has its own anode
 // red, blue, green channels (on or off)
-bool ledStates[][] = {
+bool ledStates[][3] = {
+    {0, 0, 0},
+    {1, 0, 0},
     {0, 0, 0},
     {0, 0, 0},
     {0, 0, 0},
     {0, 0, 0},
-}
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0}
+};
 
 /// modules ///
 // button module
 int buttonPins[] = {7, 8, 9, 10};
+bool red[] = {1, 0, 0};
+bool green[] = {0, 1, 0};
+bool blue[] = {0, 0, 1};
+bool purple[] = {1, 0, 1};
+
+int targetOrder[] = {-1, -1, -1, -1};
+
+// wires module
+#define wiresReadPin A7
+#define tolerance 15
+#define wiresVerifyButton A3
+bool previousVerifyState = true;
+
+// morse module
+//Array of MorseCode for letters of English Language A to Z
+String letters[]={
+
+// A to I
+".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....", "..",
+// J to R 
+".---", "-.-", ".-..", "--", "-.", "---", ".--.", "--.-", ".-.",
+// S to Z
+"...", "-", "..-", "...-", ".--", "-..-", "-.--", "--.." 
+};
+#define dotLength 100
+#define dashLength 300
+#define letterSpacing 300
+#define restartSpacing 1000
 
 void setup() {
-    pinMode(hardModeSelectPin, INPUT);
-    pinMode(lidSensorPin, INPUT);
+    pinMode(hardModeSelectPin, INPUT_PULLUP);
+    pinMode(lidSensorPin, INPUT_PULLUP);
     pinMode(buzzerPin, OUTPUT);
+    pinMode(wiresVerifyButton, INPUT_PULLUP);
 
     pinMode(shiftData, OUTPUT);
     pinMode(shiftClk, OUTPUT);
@@ -81,8 +132,12 @@ void setup() {
     digitalWrite(shiftClk, 0);
     digitalWrite(shiftLatch, 0);
 
+    //Wire.begin();
+    //Wire.onReceive(receiveEvent);
+    //Wire.onRequest(requestEvent);
+
     lcd.begin(16, 2);
-    lcd.clear();
+    //lcd.clear();
 
     srand(analogRead(lidSensorPin));
 
@@ -121,7 +176,11 @@ void loop() {
             showSerialCode();
             updateBuzzer();
             showStrikes();
-            if(timerLow == 0 && timerHigh == 0 || strikes >= 2) { // timer ran out
+
+            doButtonModule();
+            doWiresModule();
+
+            if(timerLow == 0 && timerHigh == 0 || strikes > 2) { // timer ran out of too many strikes
                 explode();
             }
 
@@ -146,6 +205,14 @@ void loop() {
             delay(1000);
             break;
     }
+}
+
+void receiveEvent() {
+
+}
+
+void requestEvent() {
+
 }
 
 void buzzerOn() {
@@ -207,7 +274,6 @@ void showSerialCode() {
     for(int i = 0; i < 6; i++) {
         lcd.print(serialCode[i]);
     }
-    lcd.println();
 }
 
 void showStrikes() {
@@ -219,21 +285,47 @@ void explode() {
     bombState = 4;
 }
 
-void multiplexLeds() {
-    for(int i = 0; i < numLeds; i++) {
-        out &= ~ledAnodes[i];
-        out &= ~ledRed;
-        out &= ~ledGreen;
-        out &= ~ledBlue;
-        if (ledStates[i][0]) out |= ledRed;
-        if (ledStates[i][1]) out |= ledGreen;
-        if (ledStates[i][2]) out |= ledBlue;
-        updateShiftReg();
+void doWiresModule() {
+    bool verify = digitalRead(wiresVerifyButton);   
+    if(previousVerifyState && !verify) {
+        // do the check on what the wires should be
+        bool failCheck = false;
+        if(failCheck) {
+            addStrike();
+        }
     }
+    previousVerifyState = verify;
+}
+
+void doButtonModule() {
+    
+
+    multiplexLeds();
+}
+
+void multiplexLeds() {
+    out = ledAnodes[0];
+    updateShiftReg();
+    //out &= ~ledRed;
+    //out &= ~ledBlue;
+    //out &= ~ledGreen;
+    // for(int i = 0; i < numLeds; i++) {
+    //     out |= ledAnodes[i];
+    //     out &= ~ledRed;
+    //     out &= ~ledGreen;
+    //     out &= ~ledBlue;
+    //     if (ledStates[i][0]) out |= ledRed;
+    //     if (ledStates[i][1]) out |= ledGreen;
+    //     if (ledStates[i][2]) out |= ledBlue;
+    //     updateShiftReg();
+    //     out &= ~ledAnodes[i];
+    //     delay(1000);
+    // }
 }
 
 void updateShiftReg() {
-    shiftOut(shiftData, shiftClk, out);
+    shiftOut(shiftData, shiftClk, MSBFIRST, out >> 8);
+    shiftOut(shiftData, shiftClk, MSBFIRST, out & 0xff);
     digitalWrite(shiftLatch, 1);
     digitalWrite(shiftLatch, 0);
 }
