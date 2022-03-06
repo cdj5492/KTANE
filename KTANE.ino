@@ -81,19 +81,19 @@ uint16_t ledBlue = 6;
 
 int numLeds = 10;
 //uint16_t ledAnodes[] = {1 << 5, 1 << 4, 1 << 3, 1 << 2}; // each led has its own anode
-uint16_t ledAnodes[] = {5, 4, 3, 2, 1, 14, 13, 12, 11, 10};
+uint16_t ledAnodes[] = {5, 4, 3, 2, 9, 14, 13, 12, 11, 10};
 // red, blue, green channels (on or off)
 bool ledStates[][3] = {
-    {1, 0, 0},
-    {0, 0, 1},
-    {0, 1, 0},
-    {1, 0, 1},
     {0, 0, 0},
-    {1, 0, 0},
     {0, 0, 0},
-    {1, 0, 0},
     {0, 0, 0},
-    {1, 0, 0}
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0}
 };
 
 int binaryNumber = 0;
@@ -137,6 +137,9 @@ char words[][5] = {
     "grind",
     "proud"
 };
+
+
+
 int rotations[] {
     5-2,
     6-4,
@@ -155,10 +158,14 @@ int rotations[] {
 };
 char secretMessage[5];
 int secretMessageRotations = 0;
+unsigned long morseTimerStart;
+int charIndex = 0;
+int letterIndex = 0;
 #define dotLength 100
 #define dashLength 300
 #define letterSpacing 300
 #define restartSpacing 1000
+unsigned long currentDelay = letterSpacing;
 #define morseCodeLedIndex 4
 
 // switch module
@@ -175,6 +182,7 @@ void setup() {
     pinMode(lidSensorPin, INPUT_PULLUP);
     pinMode(buzzerPin, OUTPUT);
     pinMode(wiresVerifyButton, INPUT_PULLUP);
+    pinMode(wiresReadPin, INPUT_PULLUP);
 
     pinMode(shiftData, OUTPUT);
     pinMode(shiftClk, OUTPUT);
@@ -196,8 +204,8 @@ void setup() {
     lcd.begin(16, 2);
     //lcd.clear();
 
-    srand(analogRead(lidSensorPin));
-    randomSeed(analogRead(lidSensorPin));
+    srand(analogRead(wiresReadPin));
+    randomSeed(analogRead(wiresReadPin));
 
     Serial.begin(9600);
 }
@@ -214,6 +222,7 @@ void loop() {
 
         strikes = 0;
         buttonModuleCompleted = false;
+        randomizeButtonLeds();
         generateButtonSequence();
         positionInSequence = 0;
 
@@ -231,7 +240,7 @@ void loop() {
         readButtons();
         previousArduinoDigitalPins = arduinoDigitalPins;
 
-        int wordIndex = 5;
+        int wordIndex = random(0, 14);
         for(int i = 0; i < 5; i++) {
             secretMessage[i] = words[wordIndex][i];
         }
@@ -267,6 +276,14 @@ void loop() {
 
         lcd.print("You exploded!");
         Serial.println("You exploded!");
+
+        if(buttonModuleCompleted) {
+            for(int i = 0; i < 4; i++) {
+                ledStates[i][0] = 0;
+                ledStates[i][1] = 0;
+                ledStates[i][2] = 0;
+            }
+        }
 
         for(int j = 0; j < 300; j++) {
             explosionSound();
@@ -377,7 +394,34 @@ void doWiresModule() {
 }
 
 void doMorseCodeModule() {
-    
+    unsigned long timeElapsed = millis() - morseTimerStart;
+    //Serial.println(charIndex);
+    if(timeElapsed > currentDelay) {
+        //ledState[morseCodeLedIndex][0] = !ledState[morseCodeLedIndex][0];
+        if(ledStates[morseCodeLedIndex][0]) { // if it is on, then we just finished a dot or a dash
+            ledStates[morseCodeLedIndex][0] = 0;
+            if (charIndex > letters[secretMessage[letterIndex]-97].length()) {
+                charIndex = 0;
+                letterIndex++;
+                morseTimerStart = millis();
+                if(letterIndex == 5) {
+                    letterIndex = 0;
+                    currentDelay = restartSpacing;
+                } else {
+                    currentDelay = letterSpacing;
+                }
+            }
+        } else {
+            ledStates[morseCodeLedIndex][0] = 1;
+            morseTimerStart = millis();
+            if (letters[secretMessage[letterIndex]-97].charAt(charIndex) == '.') {
+                currentDelay = dotLength;
+            } else {
+                currentDelay = dashLength;
+            }
+            charIndex++;
+        }
+    }
 }
 
 void doButtonModule() {
@@ -448,6 +492,29 @@ void readButtons() {
     arduinoDigitalPins = ~Wire.read();
 
     //Serial.println(arduinoDigitalPins, BIN);
+}
+
+void randomizeButtonLeds() {
+    for(int i = 0; i < 4; i++) { // for each led
+        int col = rand() % 4; // generate a random color
+        if(col == 0) { // red
+            ledStates[i][0] = 1;
+            ledStates[i][1] = 0;
+            ledStates[i][2] = 0;
+        } else if(col == 1) { // green
+            ledStates[i][0] = 0;
+            ledStates[i][1] = 1;
+            ledStates[i][2] = 0;
+        } else if(col == 2) { // blue
+            ledStates[i][0] = 0;
+            ledStates[i][1] = 0;
+            ledStates[i][2] = 1;
+        } else { // purple
+            ledStates[i][0] = 1;
+            ledStates[i][1] = 0;
+            ledStates[i][2] = 1;
+        }
+    }
 }
 
 void generateButtonSequence() {
