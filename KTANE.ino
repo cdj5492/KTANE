@@ -156,15 +156,21 @@ int rotations[] {
     3,
     7
 };
+int encoderPosition = 0;
+#define knobClkPin A3
+#define knobDirPin A4
+#define knobVerifyPin A6
+bool previousKnobClk = 0;
 char secretMessage[5];
 int secretMessageRotations = 0;
+bool morseModuleCompleted = false;
 unsigned long morseTimerStart;
 int charIndex = 0;
 int letterIndex = 0;
-#define dotLength 100
-#define dashLength 300
-#define letterSpacing 300
-#define restartSpacing 1000
+#define dotLength 1000
+#define dashLength 3000
+#define letterSpacing 3000
+#define restartSpacing 5000
 unsigned long currentDelay = letterSpacing;
 #define morseCodeLedIndex 4
 
@@ -183,6 +189,9 @@ void setup() {
     pinMode(buzzerPin, OUTPUT);
     pinMode(wiresVerifyButton, INPUT_PULLUP);
     pinMode(wiresReadPin, INPUT_PULLUP);
+    pinMode(knobClkPin, INPUT_PULLUP);
+    //pinMode(knobDirPin, INPUT_PULLUP);
+    pinMode(knobVerifyPin, INPUT_PULLUP);
 
     pinMode(shiftData, OUTPUT);
     pinMode(shiftClk, OUTPUT);
@@ -204,8 +213,8 @@ void setup() {
     lcd.begin(16, 2);
     //lcd.clear();
 
-    srand(analogRead(wiresReadPin));
-    randomSeed(analogRead(wiresReadPin));
+    srand(analogRead(knobDirPin));
+    randomSeed(analogRead(knobDirPin));
 
     Serial.begin(9600);
 }
@@ -222,9 +231,12 @@ void loop() {
 
         strikes = 0;
         buttonModuleCompleted = false;
+        morseModuleCompleted = false;
         randomizeButtonLeds();
         generateButtonSequence();
         positionInSequence = 0;
+
+        encoderPosition = 0;
 
         // generate a random serial code
         randomString(6).toCharArray(serialCode, 7);
@@ -260,6 +272,7 @@ void loop() {
         updateBuzzer();
         showStrikes();
         showBinaryNumber();
+        showEncoderPos();
 
         doButtonModule();
         doWiresModule();
@@ -271,7 +284,12 @@ void loop() {
             explode();
         }
 
+        if(buttonModuleCompleted && morseModuleCompleted) {
+            bombState = 6;
+        }
+
     } else if(bombState == 4) { // game is over
+        lcd.clear();
         lcd.setCursor(0, 0);
 
         lcd.print("You exploded!");
@@ -298,6 +316,14 @@ void loop() {
         updateBuzzer();
 
         //delay(1000);
+    } else if (bombState = 6) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+
+        lcd.print("You did it!!!");
+
+        delay(6000);
+        bombState = 5;
     }
 }
 
@@ -422,6 +448,37 @@ void doMorseCodeModule() {
             charIndex++;
         }
     }
+
+    // knob
+    bool clk = digitalRead(knobClkPin);
+    if(previousKnobClk != clk) {
+        if(digitalRead(knobDirPin)) {
+            encoderPosition++;
+        } else {
+            encoderPosition--;
+        }
+    }
+    previousKnobClk = clk;
+
+    Serial.println(digitalRead(knobVerifyPin));
+
+    if(!morseModuleCompleted) {
+        if(digitalRead(knobVerifyPin)) {
+            if(encoderPosition/50 == secretMessageRotations) {
+                morseModuleCompleted = true;
+            } else {
+                addStrike();
+                encoderPosition = 0;
+            }
+        }
+    } else {
+        ledStates[morseCodeLedIndex][0] = 1;
+    }
+}
+
+void showEncoderPos() {
+    lcd.setCursor(13, 1);
+    lcd.print(encoderPosition/50);
 }
 
 void doButtonModule() {
