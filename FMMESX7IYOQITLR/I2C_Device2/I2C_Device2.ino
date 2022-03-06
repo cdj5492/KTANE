@@ -220,12 +220,12 @@ void setup() {
   pinMode(PWM_11, OUTPUT);
   analogWrite(PWM_11, PWM_OFF);  
   
-  pinMode(DIGITAL_IO_2,  INPUT);
-  pinMode(DIGITAL_IO_4,  INPUT);
-  pinMode(DIGITAL_IO_7,  INPUT);
-  pinMode(DIGITAL_IO_8,  INPUT);
-  pinMode(DIGITAL_IO_12, INPUT);
-  pinMode(DIGITAL_IO_13, INPUT);
+  pinMode(DIGITAL_IO_2,  INPUT_PULLUP);
+  pinMode(DIGITAL_IO_4,  INPUT_PULLUP);
+  pinMode(DIGITAL_IO_7,  INPUT_PULLUP);
+  pinMode(DIGITAL_IO_8,  INPUT_PULLUP);
+  pinMode(DIGITAL_IO_12, INPUT_PULLUP);
+  pinMode(DIGITAL_IO_13, INPUT_PULLUP);
   
   bRegisterArray[PWM_3_REG]          = PWM_OFF;
   bRegisterArray[PWM_5_REG]          = PWM_OFF;
